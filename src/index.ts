@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { Oauth2Manager } from 'higa';
 import express, { Express, Request, Response } from 'express';
 
 type APIVersions = '6' | '7' | '8' | '9' | '10';
@@ -8,7 +9,6 @@ interface ClientOptions {
   client_id: string;
   client_secret: string;
   redirect_uri: string;
-  grant_type: string;
   api_version: APIVersions;
 }
 
@@ -28,22 +28,21 @@ interface AccesTokenResponse {
 
 class ClientAPI {
   port: number;
-  client_id: string;
-  #client_secret: string;
   redirect_uri: string;
-  grant_type: string;
-  api_version: APIVersions;
+
+  #manager: Oauth2Manager;
 
   functions: ClientFunctions;
 
   #app: Express;
   constructor(options: ClientOptions, functions: ClientFunctions) {
     this.port = options.port;
-    this.client_id = options.client_id;
-    this.#client_secret = options.client_secret;
+    this.#manager = new Oauth2Manager(
+      options.client_id,
+      options.client_secret,
+      options.api_version
+    );
     this.redirect_uri = options.redirect_uri;
-    this.grant_type = options.grant_type;
-    this.api_version = options.api_version;
 
     this.functions = functions;
 
@@ -59,22 +58,13 @@ class ClientAPI {
 
   setupRoute = (redirectFunction?: (req: Request, res: Response) => void) => {
     this.#app.get('/', async (req, res) => {
-      const code = req.query.code;
+      const code = <string>req.query.code;
       if (redirectFunction) redirectFunction(req, res);
       else res.send(`No redirection function provided`);
 
-      const { data: result } = await axios.post<AccesTokenResponse>(
-        `https://discord.com/api/v${this.api_version}/oauth2/token`,
-        `client_id=${this.client_id}&client_secret=${
-          this.#client_secret
-        }&grant_type=${this.grant_type}&code=${code}&redirect_uri=${
-          this.redirect_uri
-        }`,
-        {
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-          }
-        }
+      const result = await this.#manager.getAccessToken(
+        code,
+        this.redirect_uri
       );
 
       this.functions.registerFunction(result);
@@ -84,21 +74,13 @@ class ClientAPI {
 
   #reload = async (token: AccesTokenResponse) => {
     setInterval(async () => {
-      const { data: result } = await axios.post<AccesTokenResponse>(
-        `https://discord.com/api/v${this.api_version}/oauth2/token`,
-        `client_id=${this.client_id}&client_secret=${
-          this.#client_secret
-        }&grant_type=refresh_token&refresh_token=${token.refresh_token}`,
-        {
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-          }
-        }
+      const result = await this.#manager.refreshAccessToken(
+        token.refresh_token
       );
       this.functions.deleteToken(token);
       this.functions.registerFunction(result);
       this.#reload(result);
-    }, token.expires_in);
+    }, token.expires_in * 900);
   };
 }
 

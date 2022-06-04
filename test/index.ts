@@ -25,7 +25,6 @@ const client = new ClientAPI(
     client_id: '684100826914226283',
     client_secret: process.env.CLIENT_SECRET ?? '',
     redirect_uri: 'http://localhost:4000',
-    grant_type: 'authorization_code',
     api_version: '9'
   },
   {
