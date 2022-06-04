@@ -4,15 +4,6 @@ import express from 'express';
 
 config();
 
-const client = new ClientAPI({
-  port: 4000,
-  client_id: '684100826914226283',
-  client_secret: process.env.CLIENT_SECRET ?? '',
-  redirect_uri: 'http://localhost:4000',
-  grant_type: 'authorization_code',
-  api_version: '9'
-});
-
 const custom_app = express();
 const data: AccesTokenResponse[] = [];
 custom_app.get('/', (req, res) => {
@@ -20,10 +11,30 @@ custom_app.get('/', (req, res) => {
 });
 custom_app.listen(5000);
 
-const registerFunction = (token: AccesTokenResponse) => {
+const registerFunction = async (token: AccesTokenResponse) => {
   data.push(token);
 };
 
-client.setupRoute(registerFunction);
+const deleteToken = async (token: AccesTokenResponse) => {
+  data.splice(data.indexOf(token), 1);
+};
+
+const client = new ClientAPI(
+  {
+    port: 4000,
+    client_id: '684100826914226283',
+    client_secret: process.env.CLIENT_SECRET ?? '',
+    redirect_uri: 'http://localhost:4000',
+    grant_type: 'authorization_code',
+    api_version: '9'
+  },
+  {
+    registerFunction,
+    deleteToken,
+    getAllTokens: () => Promise.resolve(data)
+  }
+);
+
+client.setupRoute();
 
 client.launch(() => console.log('started'));
