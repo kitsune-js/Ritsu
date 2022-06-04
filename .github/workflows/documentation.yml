@@ -3,7 +3,7 @@ name: Generate Documentation
 on:
   push:
     branches:
-      - master
+      - scientist
     paths:
       - 'src/**'
   workflow_dispatch:
